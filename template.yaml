@@ -7,95 +7,55 @@ Globals:
   Function:
     Timeout: 180
 
-
 Parameters:
   SplunkHttpEventCollectorURL:
     Type: String
     Description: "URL address of your Splunk HTTP event collector endpoint"
-
   SplunkHttpEventCollectorToken:
     Type: String
     Description: "Token of your Splunk HTTP event collector endpoint"
-
   SplunkAcknowledgementRequired:
-    Type:  String
+    Type: String
     Description: "True or False for Acknowledgement check required"
     Default: "false"
-
   SplunkAcknowledgementRetries:
     Type: Number
     Description: "Number of retries to check acknowledgement"
     Default: 5
-
   SplunkAcknowledgementWaitSeconds:
     Type: Number
     Description: "Number of seconds to wait for acknowledgement"
-    Default: 3    
-
+    Default: 3
   DebugData:
     Type: String
-    Description : "True or False to display debug data in Lambda execution output. Useful for debuging acknowledgement issues."
+    Description: "True or False to display debug data in Lambda execution output. Useful for debuging acknowledgement issues."
     Default: "false"
-
   ELBCookieName:
     Type: String
-    Description : "Cookie name for Loadbalancer. AWSELB for AWS Classic ELB or AWSALB for AWS Application ELB"    
-
+    Description: "Cookie name for Loadbalancer. AWSELB for AWS Classic ELB or AWSALB for AWS Application ELB"
   SplunkHttpEventCollectorType:
     Type: String
-    Description : "HEC Endpoint Type for raw or event endpoints"  
+    Description: "HEC Endpoint Type for raw or event endpoints"
     Default: "raw"
-
   HTTPRequestTimeout:
     Type: Number
-    Description : "Seconds as timeout parameter for HTTP requests to HEC endpoint"  
+    Description: "Seconds as timeout parameter for HTTP requests to HEC endpoint"
     Default: 5
-
   SplunkSourceType:
     Type: "String"
-    Description : "Splunk source types. Examples: aws:cloudtrail, aws:cloudwatchlogs:vpcflow etc."
-
+    Description: "Splunk source types. Examples: aws:cloudtrail, aws:cloudwatchlogs:vpcflow etc."
   HTTPVerifySSL:
     Type: "String"
-    Description : "True or False for verify ssl parameter for HTTP requests."
-    Default: "true"    
+    Description: "True or False for verify ssl parameter for HTTP requests."
+    Default: "true"
+  VpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: "VPC ID for the Lambda function"
+  SubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: "Subnet IDs for the Lambda function"
 
 Resources:
-  SplunkLambdaKMSKey:
-    Type: 'AWS::KMS::Key'
-    Properties:
-      Description: Customer Managed KMS Key to secure Lambda Environment Variables
-      EnableKeyRotation: true
-      PendingWindowInDays: 20
-      KeyPolicy:
-        Version: 2012-10-17
-        Id: key-default-1
-        Statement:
-          - Sid: Enable IAM User Permissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action: 'kms:*'
-            Resource: '*'
-          - Sid: Allow administration of the key
-            Effect: Allow
-            Principal:
-              AWS: !GetAtt SplunkLambdaCloudWatchLogsRole.Arn
-            Action:
-              - 'kms:Create*'
-              - 'kms:Describe*'
-              - 'kms:Enable*'
-              - 'kms:List*'
-              - 'kms:Put*'
-              - 'kms:Update*'
-              - 'kms:Revoke*'
-              - 'kms:Disable*'
-              - 'kms:Get*'
-              - 'kms:Delete*'
-              - 'kms:ScheduleKeyDeletion'
-              - 'kms:CancelKeyDeletion'
-            Resource: '*'
-
   SplunkLambdaCloudWatchLogsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -109,29 +69,36 @@ Resources:
           Action:
           - sts:AssumeRole
       Policies:
-        - PolicyName: lambda-cloudwatch
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-            - Effect: Allow
-              Action:
-              - logs:CreateLogGroup
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-              Resource: arn:aws:logs:*:*:*                
-
+      - PolicyName: lambda-cloudwatch
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: arn:aws:logs:*:*:*
+  SecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Splunk Lambda CloudWatch Logs Processor
+      VpcId: !Ref VpcId
   SplunkLambdaCloudWatchLogsProcessor:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: SplunkLambdaCloudWatchLogsProcessor
       Handler: app.lambda_handler
-      Runtime: python3.9
+      Runtime: python3.13
       Architectures:
-      - x86_64
+      - arm64
       Timeout: 180
       MemorySize: 128
-      KmsKeyArn: !GetAtt SplunkLambdaKMSKey.Arn
       Role: !GetAtt 'SplunkLambdaCloudWatchLogsRole.Arn'
+      VpcConfig:
+        Ipv6AllowedForDualStack: false # TODO: Var?
+        SecurityGroupIds: [!Ref SecGroup]
+        SubnetIds: !Ref SubnetIds
       Environment:
         Variables:
           ACK_REQUIRED: !Ref SplunkAcknowledgementRequired
