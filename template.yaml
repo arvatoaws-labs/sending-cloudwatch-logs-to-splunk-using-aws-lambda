@@ -54,6 +54,9 @@ Parameters:
   SubnetIds:
     Type: "List<AWS::EC2::Subnet::Id>"
     Description: "Subnet IDs for the Lambda function"
+  LogGroupName:
+    Type: String
+    Description: "CloudWatch Log Group Name to subscribe to"
 
 Resources:
   SplunkLambdaCloudWatchLogsRole:
@@ -116,6 +119,12 @@ Resources:
         Ipv6AllowedForDualStack: false # TODO: Var?
         SecurityGroupIds: [!Ref SecGroup]
         SubnetIds: !Ref SubnetIds
+      Events:
+        CloudWatchLogsEvent:
+          Type: CloudWatchLogs
+          Properties:
+            LogGroupName: !Ref LogGroupName
+            FilterPattern: ""
       Environment:
         Variables:
           ACK_REQUIRED: !Ref SplunkAcknowledgementRequired
