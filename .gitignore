@@ -37,3 +37,10 @@ terraform.rc
 .vscode
 .DS_Store
 .env
+
+.venv
+.aws-sam
+uv.lock
+.vscode
+.idea
+samconfig.yaml
